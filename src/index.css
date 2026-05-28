@@ -1,0 +1,243 @@
+@import 'highlight.js/styles/github.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-default: #ffffff;
+  --bg-subtle: #f6f8fa;
+  --bg-inset: #f6f8fa;
+  --border-default: #d0d7de;
+  --border-muted: #d8dee4;
+  --fg-default: #1f2328;
+  --fg-muted: #656d76;
+  --fg-subtle: #6e7781;
+  --accent-fg: #0969da;
+  --accent-emphasis: #0550ae;
+  --accent-subtle: #ddf4ff;
+  --success-fg: #1a7f37;
+  --attention-fg: #9a6700;
+  --danger-fg: #cf222e;
+}
+
+[data-theme='dark'] {
+  --bg-default: #0d1117;
+  --bg-subtle: #161b22;
+  --bg-inset: #010409;
+  --border-default: #30363d;
+  --border-muted: #21262d;
+  --fg-default: #e6edf3;
+  --fg-muted: #8b949e;
+  --fg-subtle: #6e7681;
+  --accent-fg: #58a6ff;
+  --accent-emphasis: #1f6feb;
+  --accent-subtle: #388bfd1a;
+  --success-fg: #3fb950;
+  --attention-fg: #d29922;
+  --danger-fg: #f85149;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-default);
+  color: var(--fg-default);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* README rendering */
+.markdown-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fg-default);
+  word-break: break-word;
+}
+.markdown-body h1 {
+  margin-bottom: 16px;
+  margin-top: 24px;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.markdown-body h2 {
+  margin-bottom: 12px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--border-default);
+  padding-bottom: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.markdown-body h3 {
+  margin-bottom: 8px;
+  margin-top: 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg-default);
+}
+.markdown-body p {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  list-style: inside disc;
+  padding-left: 8px;
+}
+.markdown-body ol {
+  list-style: decimal;
+}
+.markdown-body li {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+.markdown-body a {
+  color: var(--accent-fg);
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body code {
+  border-radius: 6px;
+  background: var(--bg-inset);
+  padding: 2px 6px;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--fg-default);
+}
+.markdown-body pre {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  padding: 16px;
+}
+.markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--fg-default);
+}
+.markdown-body blockquote {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid var(--border-default);
+  padding-left: 16px;
+  color: var(--fg-muted);
+}
+.markdown-body table {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border-default);
+  padding: 8px 12px;
+}
+.markdown-body th {
+  background: var(--bg-subtle);
+  font-weight: 500;
+}
+.markdown-body img {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  max-width: 100%;
+  border-radius: 8px;
+}
+.markdown-body hr {
+  margin-top: 24px;
+  margin-bottom: 24px;
+  border-color: var(--border-default);
+}
+
+/* highlight.js dark mode overrides */
+[data-theme='dark'] .hljs {
+  background: var(--bg-inset);
+  color: var(--fg-default);
+}
+[data-theme='dark'] .hljs-comment,
+[data-theme='dark'] .hljs-quote {
+  color: #8b949e;
+}
+[data-theme='dark'] .hljs-string,
+[data-theme='dark'] .hljs-addition {
+  color: #a5d6ff;
+}
+[data-theme='dark'] .hljs-keyword,
+[data-theme='dark'] .hljs-selector-tag {
+  color: #ff7b72;
+}
+
+/* ── Card drag shrink animation ── */
+.shrink-card {
+  transition: transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1),
+              opacity 0.4s cubic-bezier(0.22, 0.61, 0.36, 1),
+              filter 0.4s ease;
+  transform-origin: var(--shrink-x, 50%) var(--shrink-y, 50%);
+}
+
+.shrink-card.is-dragging {
+  transform: scale(0.3);
+  opacity: 0.4;
+  filter: blur(2px) saturate(0.3);
+}
+
+/* 代码文件预览 */
+.code-preview {
+  background: var(--bg-subtle);
+  min-height: 100%;
+}
+.code-preview .hljs {
+  background: transparent;
+  padding: 0;
+}
+
+/* xterm terminal integration */
+.xterm {
+  height: 100%;
+  width: 100%;
+  padding: 4px 6px;
+}
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -1,0 +1,69 @@
+{
+  "name": "codebox",
+  "version": "0.1.0",
+  "description": "码盒 - Vibe Coding 项目的本地管理与灵感浏览器",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "postinstall": "electron-builder install-app-deps",
+    "rebuild:pty": "npx @electron/rebuild -f -w node-pty",
+    "build": "vite build",
+    "electron:build": "npm run build && electron-builder",
+    "icon:generate": "node scripts/gen-icon.mjs"
+  },
+  "build": {
+    "appId": "com.codebox.app",
+    "productName": "码盒",
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "build/icon.png"
+    ]
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.99.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron-store": "^10.0.0",
+    "lucide-react": "^0.468.0",
+    "node-pty": "^1.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "rehype-highlight": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.0",
+    "uuid": "^11.0.3",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "wait-on": "^8.0.1"
+  }
+}

@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+dist-electron/
+release/
+
+# Logs & debug
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.cursor/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# OS
+*.local
+
+# Electron / Vite
+*.tsbuildinfo
+
+# ── 码盒运行时数据（勿提交）────────────────────────────────────────
+# electron-store 默认在系统用户目录；若复制到项目根目录也需忽略
+mahe-data.json
+mahe-data.json.bak
+config.mahe.json
+
+# 本地覆盖配置（可能含 API Key、工作区路径等）
+settings.local.json
+config.local.json
+config.local.js
+config.local.ts
+**/settings.local.json
+
+# Claude Code / 本地助手（项目内 .claude）
+.claude/
+
+# ── 克隆仓库工作区（第三方代码，绝不应进入本仓库）────────────────────
+# 默认路径为「文档/码盒/repos」；若把工作区设在项目目录下，常见目录名如下：
+/repos/
+/码盒/
+/workspace/
+/workspaces/
+/clones/
+/local-repos/
+/imported/
+
+# 任意层级误放在项目内的完整 git 克隆（仅忽略含 .git 的目录较复杂，以上目录名优先）
+# 若你自定义了其它工作区文件夹名，请在此追加一行，例如：/my-vibe-repos/
