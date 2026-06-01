@@ -2,12 +2,23 @@
 
 > **Vibe Coding 灵感管理器** — 本地仓库收纳 + AI 辅助阅读 + 灵感二次创作
 
+[![Release](https://img.shields.io/github/v/release/lovewold/codebox?label=release)](https://github.com/lovewold/codebox/releases)
+
 Vibe Coding 时代，每个人都能用 AI 快速生成项目。GitHub 上每天涌现海量创意——克隆下来、看懂它、改造它，你的灵感不该散落一地。
 
 码盒就是你的本地灵感盒子：**一键克隆、分类整理、README 预览、AI 翻译阅读、Git 管理、内置终端**——从「看到项目」到「跑起来」再到「改一版」，全在盒子里完成。
 
 ---
 
+## 快速安装（Windows）
+
+1. 打开 [Releases](https://github.com/lovewold/codebox/releases/latest) 下载 **`码盒 Setup x.x.x.exe`**
+2. **双击安装程序**完成向导安装（会自动创建桌面快捷方式）
+3. 本机需已安装 [Git](https://git-scm.com/)
+
+> 不要直接运行 `win-unpacked` 里的 exe；若已便携运行，可在 **设置 → 通用 → 应用安装与快捷方式** 中创建桌面快捷方式或运行安装程序。
+
+---
 ## 产品定位
 
 ```
@@ -30,10 +41,13 @@ GitHub 发现 → 码盒本地管理 → README + AI 快速理解 → 本地改�
 
 ### 灵感收纳
 
-- **一键克隆** — 粘贴 GitHub 链接，自动 clone 到本地工作区
-- **本地仓库扫描** — 自动识别语言、提取 README 摘要、获取 Git 状态
+- **一键克隆** — 粘贴 GitHub 链接，自动 clone 到本地工作区（云端仓库）
+- **本地 / 云端双模式** — 本地=纯文件夹（无需 Git）；云端=Git 仓库；新建时可选择类型
+- **工作区自动扫描** — 启动与刷新时自动识别工作区内的 Git 项目与本地文件夹
+- **拖放添加** — 拖放文件夹到顶部栏添加本地仓库；详情页拖放可更换路径
+- **分类整理** — 默认「个人 / 工作」一级分类，Skill、AI Agent 等二三级子分类
 - **三种视图** — 网格、列表、紧凑（侧边栏 + 详情）
-
+- **外部启动** — Codex、Cursor、Edge 一键打开当前仓库
 ### 理解代码
 
 - **README 富文本预览** — GFM、代码高亮、图片
@@ -48,6 +62,10 @@ GitHub 发现 → 码盒本地管理 → README + AI 快速理解 → 本地改�
 - **内置终端** — xterm，按仓库复用会话；**文档 / 终端** 分标签，不互相挤压布局
 - **终端配色** — 设置 → 通用 → 终端配色（默认暖色）
 
+### 安装与快捷方式
+
+- **向导式安装包** — NSIS 安装，可选目录，自动创建桌面与开始菜单快捷方式
+- **应用内管理** — 设置 → 通用 → 应用安装与快捷方式：创建快捷方式、打开安装目录
 ### GitHub 探索
 
 - 在线搜索、Cookie 登录态、搜索结果一键入库
@@ -79,7 +97,7 @@ GitHub 发现 → 码盒本地管理 → README + AI 快速理解 → 本地改�
 
 - 仓库笔记、灵感合集、macOS/Linux、可选云端同步
 
-详见 [CHANGELOG.md](./CHANGELOG.md)。
+详见 [CHANGELOG.md](./CHANGELOG.md)（当前最新 **v0.1.1**）。
 
 ---
 
@@ -132,6 +150,8 @@ npm run electron:build
 # 安装包 → release/码盒 Setup x.x.x.exe
 ```
 
+安装包为**向导式 NSIS**，安装后自动创建桌面快捷方式。发布时请将 `.exe` 上传至 [GitHub Releases](https://github.com/lovewold/codebox/releases)。
+
 ---
 
 ## 数据说明
@@ -160,4 +180,7 @@ npm run electron:build
 | 文件 | 说明 |
 |------|------|
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录 |
-| [docs/CODE_REVIEW.md](./docs/CODE_REVIEW.md) | 近期改动的审查备忘与提交前检查清单 |
+| [docs/RELEASE_v0.1.1.md](./docs/RELEASE_v0.1.1.md) | **v0.1.1 发布声明**（安装、亮点） |
+| [docs/GITHUB_RELEASE_v0.1.1.md](./docs/GITHUB_RELEASE_v0.1.1.md) | GitHub Release 页面正文 |
+| [docs/RELEASE_v0.1.0.md](./docs/RELEASE_v0.1.0.md) | v0.1.0 发布声明 |
+| [docs/CODE_REVIEW.md](./docs/CODE_REVIEW.md) | 代码审查备忘与提交前检查清单 |

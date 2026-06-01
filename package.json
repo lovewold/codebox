@@ -1,6 +1,6 @@
 {
   "name": "codebox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "码盒 - Vibe Coding 项目的本地管理与灵感浏览器",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -24,6 +24,23 @@
         "nsis"
       ],
       "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "码盒",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "menuCategory": "码盒",
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "language": "2052"
     },
     "files": [
       "dist/**/*",

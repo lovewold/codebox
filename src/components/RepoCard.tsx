@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
-import { FolderGit2, GripVertical, Star, Tag } from 'lucide-react'
-import type { Category, RepoRecord } from '../types'
+import { Cloud, FolderGit2, FolderOpen, GripVertical, Star, Tag } from 'lucide-react'
+import type { Category, RepoKind, RepoRecord } from '../types'
 import T from '../i18n'
 
 interface Props {
@@ -16,6 +16,20 @@ interface Props {
 function getCats(categories: Category[], ids: string[] | undefined) {
   const safeIds = ids ?? []
   return categories.filter((c) => safeIds.includes(c.id))
+}
+
+function RepoKindBadge({ kind }: { kind: RepoKind }) {
+  const isCloud = kind === 'cloud'
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] ${
+        isCloud ? 'bg-accent-subtle text-accent-fg' : 'bg-bg-inset text-fg-muted'
+      }`}
+    >
+      {isCloud ? <Cloud className="h-3 w-3" /> : <FolderOpen className="h-3 w-3" />}
+      {isCloud ? T.repoKindCloud : T.repoKindLocal}
+    </span>
+  )
 }
 
 export function RepoCard({
@@ -115,12 +129,13 @@ export function RepoCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="truncate font-semibold text-fg-default">{repo.name}</h3>
+            <RepoKindBadge kind={repo.repoKind ?? 'local'} />
             {repo.language && (
               <span className="shrink-0 rounded bg-bg-inset px-2 py-0.5 text-xs text-fg-muted">
                 {repo.language}
               </span>
             )}
-            {repo.gitBranch && (
+            {repo.repoKind === 'cloud' && repo.gitBranch && (
               <span className="shrink-0 text-xs text-fg-muted">{repo.gitBranch}</span>
             )}
           </div>
@@ -173,7 +188,10 @@ export function RepoCard({
           <StarButton starred={repo.starred} onToggle={onToggleStar} />
         </div>
       </div>
-      <h3 className="mb-1 truncate text-base font-semibold text-fg-default">{repo.name}</h3>
+      <div className="mb-1 flex items-center gap-2">
+        <h3 className="min-w-0 truncate text-base font-semibold text-fg-default">{repo.name}</h3>
+        <RepoKindBadge kind={repo.repoKind ?? 'local'} />
+      </div>
       <p className="mb-3 line-clamp-3 flex-1 text-sm leading-relaxed text-fg-muted">
         {repo.description || repo.readmeExcerpt || T.noReadmeExcerpt}
       </p>
@@ -183,14 +201,18 @@ export function RepoCard({
             {repo.language}
           </span>
         )}
-        {repo.gitBranch && (
+        {repo.repoKind === 'cloud' && repo.gitBranch && (
           <span className="text-xs text-fg-muted">{repo.gitBranch}</span>
         )}
-        {repo.gitDirty && (
+        {repo.repoKind === 'cloud' && repo.gitDirty && (
           <span className="text-xs text-attention-fg">{T.uncommitted}</span>
         )}
-        {repo.aheadCount ? <span className="text-xs text-success-fg">{T.ahead(repo.aheadCount)}</span> : null}
-        {repo.behindCount ? <span className="text-xs text-attention-fg">{T.behind(repo.behindCount)}</span> : null}
+        {repo.repoKind === 'cloud' && repo.aheadCount ? (
+          <span className="text-xs text-success-fg">{T.ahead(repo.aheadCount)}</span>
+        ) : null}
+        {repo.repoKind === 'cloud' && repo.behindCount ? (
+          <span className="text-xs text-attention-fg">{T.behind(repo.behindCount)}</span>
+        ) : null}
         <CategoryLabel
           cats={cats}
           categories={categories}

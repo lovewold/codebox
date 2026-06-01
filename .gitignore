@@ -5,6 +5,9 @@ node_modules/
 dist/
 dist-electron/
 release/
+release-build/
+release-v2/
+release-v0.1.1/
 
 # Logs & debug
 *.log

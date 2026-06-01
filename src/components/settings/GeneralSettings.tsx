@@ -7,15 +7,21 @@ import {
   normalizeTerminalThemeId,
   type TerminalThemeId,
 } from '../../lib/terminalThemes'
+import { LauncherSettingsSection } from './LauncherSettingsSection'
+import { AppInstallSection } from './AppInstallSection'
+import type { LauncherId } from '../../types'
 
 const api = window.electronAPI
 
 export function GeneralSettings() {
-  const { settings, theme, setTheme, setSettings } = useAppStore()
+  const { settings, theme, setTheme, setSettings, setRepos } = useAppStore()
   const [viewMode, setViewMode] = useState(settings?.defaultView || 'grid')
   const [workspace, setWorkspace] = useState(settings?.workspaceRoot || '')
   const [terminalTheme, setTerminalTheme] = useState<TerminalThemeId>(
     normalizeTerminalThemeId(settings?.terminalTheme),
+  )
+  const [launcherPaths, setLauncherPaths] = useState<Partial<Record<LauncherId, string>>>(
+    settings?.launcherPaths ?? {},
   )
   const [saving, setSaving] = useState(false)
 
@@ -24,8 +30,17 @@ export function GeneralSettings() {
       setViewMode(settings.defaultView)
       setWorkspace(settings.workspaceRoot)
       setTerminalTheme(normalizeTerminalThemeId(settings.terminalTheme))
+      setLauncherPaths(settings.launcherPaths ?? {})
     }
   }, [settings])
+
+  async function saveLauncherPaths(next: Partial<Record<LauncherId, string>>) {
+    setLauncherPaths(next)
+    if (settings) {
+      const s = await api.settings.save({ ...settings, launcherPaths: next })
+      setSettings(s)
+    }
+  }
 
   async function handleSaveTerminalTheme(id: TerminalThemeId) {
     setTerminalTheme(id)
@@ -61,6 +76,9 @@ export function GeneralSettings() {
       if (settings) {
         const s = await api.settings.save({ ...settings, workspaceRoot: folder })
         setSettings(s)
+        await api.repos.syncWorkspace()
+        const repos = await api.repos.list()
+        setRepos(repos)
       }
     }
   }
@@ -167,8 +185,9 @@ export function GeneralSettings() {
       </section>
 
       {/* Workspace path */}
-      <section>
+      <section className="mb-8">
         <h3 className="mb-3 text-sm font-medium text-fg-default">{T.generalWorkspace}</h3>
+        <p className="mb-2 text-xs text-fg-muted">{T.workspaceHint}</p>
         <div className="flex items-center gap-2">
           <input
             type="text"
@@ -186,6 +205,10 @@ export function GeneralSettings() {
           </button>
         </div>
       </section>
+
+      <AppInstallSection />
+
+      <LauncherSettingsSection paths={launcherPaths} onChange={saveLauncherPaths} />
     </div>
   )
 }

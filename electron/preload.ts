@@ -1,15 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, Category, FilterState, GitBranch, GitCommit, GitStatusResult, ModelProfile, RepoRecord, RepoScanResult, ViewMode } from './types'
+import type { AppSettings, Category, FilterState, GitBranch, GitCommit, GitStatusResult, LauncherId, ModelProfile, RepoKind, RepoRecord, RepoScanResult, ViewMode } from './types'
 
 export interface ElectronAPI {
   repos: {
     list: () => Promise<RepoRecord[]>
     categories: () => Promise<Category[]>
     addLocal: () => Promise<{ ok: true; repo: RepoRecord } | { ok: false; error: string }>
+    addLocalFromPath: (localPath: string) => Promise<{ ok: true; repo: RepoRecord } | { ok: false; error: string }>
+    create: (folderName: string, kind?: RepoKind) => Promise<{ ok: true; repo: RepoRecord } | { ok: false; error: string }>
+    relocate: (id: string, newLocalPath: string) => Promise<{ ok: true; repo: RepoRecord } | { ok: false; error: string }>
     importUrl: (url: string) => Promise<{ ok: true; repo: RepoRecord } | { ok: false; error: string }>
     update: (id: string, patch: Partial<RepoRecord>) => Promise<RepoRecord | null>
     refresh: (id: string) => Promise<RepoRecord | null>
     refreshAll: () => Promise<RepoRecord[]>
+    syncWorkspace: () => Promise<
+      | { ok: true; added: number; updated: number; total: number; paths: string[] }
+      | { ok: false; error: string; added: number; updated: number; total: number; paths: string[] }
+    >
     remove: (id: string) => Promise<boolean>
     scan: (localPath: string) => Promise<RepoScanResult>
     readme: (localPath: string) => Promise<{
@@ -87,6 +94,31 @@ export interface ElectronAPI {
     onData: (cb: (data: { id: string; data: string }) => void) => () => void
     onExit: (cb: (data: { id: string; exitCode: number; signal: number }) => void) => () => void
   }
+  launcher: {
+    open: (
+      id: LauncherId,
+      options?: { repoPath?: string; url?: string; remoteUrl?: string },
+    ) => Promise<{ ok: boolean; error?: string }>
+    pickPath: () => Promise<string | null>
+    detectDefaults: () => Promise<Partial<Record<LauncherId, string>>>
+  }
+  app: {
+    getInstallInfo: () => Promise<{
+      version: string
+      productName: string
+      execPath: string
+      installDir: string
+      isPackaged: boolean
+      isPortable: boolean
+      hasDesktopShortcut: boolean
+      hasStartMenuShortcut: boolean
+      installerPath: string | null
+    }>
+    createDesktopShortcut: () => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+    createStartMenuShortcut: () => Promise<{ ok: true; path: string } | { ok: false; error: string }>
+    openInstallDir: () => Promise<void>
+    openInstaller: () => Promise<{ ok: true } | { ok: false; error: string }>
+  }
 }
 
 const api: ElectronAPI = {
@@ -94,10 +126,14 @@ const api: ElectronAPI = {
     list: () => ipcRenderer.invoke('repos:list'),
     categories: () => ipcRenderer.invoke('repos:categories'),
     addLocal: () => ipcRenderer.invoke('repos:add-local'),
+    addLocalFromPath: (localPath) => ipcRenderer.invoke('repos:add-local-from-path', localPath),
+    create: (folderName, kind) => ipcRenderer.invoke('repos:create', folderName, kind),
+    relocate: (id, newLocalPath) => ipcRenderer.invoke('repos:relocate', id, newLocalPath),
     importUrl: (url) => ipcRenderer.invoke('repos:import-url', url),
     update: (id, patch) => ipcRenderer.invoke('repos:update', id, patch),
     refresh: (id) => ipcRenderer.invoke('repos:refresh', id),
     refreshAll: () => ipcRenderer.invoke('repos:refresh-all'),
+    syncWorkspace: () => ipcRenderer.invoke('repos:sync-workspace'),
     remove: (id) => ipcRenderer.invoke('repos:remove', id),
     scan: (localPath) => ipcRenderer.invoke('repos:scan', localPath),
     readme: (localPath) => ipcRenderer.invoke('repos:readme', localPath),
@@ -205,6 +241,18 @@ const api: ElectronAPI = {
       ipcRenderer.on('terminal:exit', h)
       return () => ipcRenderer.removeListener('terminal:exit', h)
     },
+  },
+  launcher: {
+    open: (id, options) => ipcRenderer.invoke('launcher:open', id, options),
+    pickPath: () => ipcRenderer.invoke('launcher:pick-path'),
+    detectDefaults: () => ipcRenderer.invoke('launcher:detect-defaults'),
+  },
+  app: {
+    getInstallInfo: () => ipcRenderer.invoke('app:get-install-info'),
+    createDesktopShortcut: () => ipcRenderer.invoke('app:create-desktop-shortcut'),
+    createStartMenuShortcut: () => ipcRenderer.invoke('app:create-startmenu-shortcut'),
+    openInstallDir: () => ipcRenderer.invoke('app:open-install-dir'),
+    openInstaller: () => ipcRenderer.invoke('app:open-installer'),
   },
 }
 

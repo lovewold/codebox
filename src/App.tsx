@@ -17,7 +17,7 @@ import {
   useAppStore,
 } from './store/useAppStore'
 import T from './i18n'
-import type { RepoRecord } from './types'
+import type { RepoKind, RepoRecord } from './types'
 import {
   electronUnavailableError,
   isElectronShell,
@@ -56,8 +56,10 @@ export default function App() {
     setActiveProfileId,
     settingsOpen,
     setSettingsOpen,
+    relocateTerminalPath,
   } = useAppStore()
   const [importBusy, setImportBusy] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const [gitPanelRepo, setGitPanelRepo] = useState<RepoRecord | null>(null)
   const [detailWidth, setDetailWidth] = useState(640)
   const [bootError, setBootError] = useState<string | null>(null)
@@ -90,6 +92,7 @@ export default function App() {
     if (!api) {
       throw electronUnavailableError()
     }
+    await api.repos.syncWorkspace()
     const [r, c, s] = await Promise.all([
       api.repos.list(),
       api.repos.categories(),
@@ -157,6 +160,12 @@ export default function App() {
     }
   }, [selected?.id, selected?.localPath, setReadme, setReadmeLoading])
 
+  async function afterRepoAdded(repoId: string) {
+    await loadAll()
+    selectRepo(repoId)
+    setCurrentTab('repos')
+  }
+
   async function handleImportUrl(url: string) {
     const api = getApi()
     if (!api) return { ok: false, error: 'Electron API 不可用' }
@@ -164,9 +173,7 @@ export default function App() {
     try {
       const res = await api.repos.importUrl(url)
       if (res.ok) {
-        await loadAll()
-        selectRepo(res.repo.id)
-        setCurrentTab('repos')
+        await afterRepoAdded(res.repo.id)
         return { ok: true }
       }
       return { ok: false, error: res.error }
@@ -182,13 +189,59 @@ export default function App() {
     try {
       const res = await api.repos.addLocal()
       if (res.ok) {
-        await loadAll()
-        selectRepo(res.repo.id)
-        setCurrentTab('repos')
+        await afterRepoAdded(res.repo.id)
       }
     } finally {
       setImportBusy(false)
     }
+  }
+
+  async function handleCreateRepo(name: string, kind: RepoKind) {
+    const api = getApi()
+    if (!api) return { ok: false, error: 'Electron API 不可用' }
+    setImportBusy(true)
+    setImportMessage(null)
+    try {
+      const res = await api.repos.create(name, kind)
+      if (res.ok) {
+        await afterRepoAdded(res.repo.id)
+        return { ok: true }
+      }
+      return { ok: false, error: res.error }
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  async function handleDropFolderPaths(paths: string[]) {
+    const api = getApi()
+    if (!api || paths.length === 0) return
+    setImportBusy(true)
+    setImportMessage(null)
+    try {
+      const res = await api.repos.addLocalFromPath(paths[0])
+      if (res.ok) {
+        await afterRepoAdded(res.repo.id)
+      } else {
+        setImportMessage(res.error)
+      }
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  async function handleRelocatePath(repoId: string, oldPath: string, newPath: string) {
+    const api = getApi()
+    if (!api) return { ok: false, error: 'Electron API 不可用' }
+    const res = await api.repos.relocate(repoId, newPath)
+    if (res.ok) {
+      relocateTerminalPath(oldPath, res.repo.localPath, repoId)
+      setRepos(repos.map((r) => (r.id === repoId ? res.repo : r)))
+      const md = await api.repos.readme(res.repo.localPath)
+      setReadme(md)
+      return { ok: true }
+    }
+    return { ok: false, error: res.error }
   }
 
   async function handleRefreshAll() {
@@ -279,7 +332,14 @@ export default function App() {
         await loadAll()
       }}
       onToggleCategory={(cid) => toggleCategory(repo.id, cid)}
-      onOpenGitPanel={() => setGitPanelRepo(repo)}
+      onOpenGitPanel={repo.repoKind === 'cloud' ? () => setGitPanelRepo(repo) : undefined}
+      onRelocatePath={async (newPath) => {
+        const res = await handleRelocatePath(repo.id, repo.localPath, newPath)
+        if (!res.ok && res.error) {
+          return { ok: false, error: res.error }
+        }
+        return { ok: true }
+      }}
     />
   )
 
@@ -466,8 +526,15 @@ export default function App() {
           <ImportBar
             onAddLocal={handleAddLocal}
             onImportUrl={handleImportUrl}
+            onCreateRepo={handleCreateRepo}
+            onDropFolderPaths={handleDropFolderPaths}
             busy={importBusy}
           />
+          {importMessage && (
+            <div className="border-b border-border-default bg-danger-fg/10 px-4 py-2 text-sm text-danger-fg">
+              {importMessage}
+            </div>
+          )}
 
           <div className="flex min-h-0 flex-1 bg-bg-default">
             <Sidebar

@@ -1,3 +1,5 @@
+import { hasSingleInstanceLock } from './app-bootstrap.js'
+import { configureSessionProxy } from './session-proxy.js'
 import {
   app,
   BrowserWindow,
@@ -25,7 +27,7 @@ import {
   setTranslationCache,
   store,
 } from './store.js'
-import { cloneRepository, isGitRepository } from './git-service.js'
+import { cloneRepository, initGitRepository, isGitRepository } from './git-service.js'
 import { findChineseReadme } from './readme-files.js'
 import { readReadme, scanRepository, writeReadmeCN } from './repo-scanner.js'
 import type { Category, ModelProfile, RepoRecord } from './types.js'
@@ -45,6 +47,20 @@ import {
 import { runAgentLoop } from './agent-service.js'
 import { terminalManager } from './terminal-manager.js'
 import { fileTreeWatcher } from './file-tree-watcher.js'
+import {
+  detectLauncherDefaults,
+  launchExternalApp,
+} from './launcher-service.js'
+import type { LauncherId } from './types.js'
+import { upsertRepo } from './repo-registry.js'
+import { syncWorkspaceRepos } from './workspace-sync.js'
+import {
+  createDesktopShortcut,
+  createStartMenuShortcut,
+  getAppInstallInfo,
+  openAppInstallDir,
+  openInstaller,
+} from './shortcut-service.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -84,11 +100,44 @@ function createWindow() {
 }
 
 function buildMenu() {
+  const shortcutSubmenu: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: '创建桌面快捷方式',
+      click: async () => {
+        const res = await createDesktopShortcut()
+        if (mainWindow) {
+          if (res.ok) {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: '码盒',
+              message: '桌面快捷方式已创建',
+              detail: res.path,
+            })
+          } else {
+            dialog.showMessageBox(mainWindow, {
+              type: 'warning',
+              title: '码盒',
+              message: res.error,
+            })
+          }
+        }
+      },
+    },
+    {
+      label: '打开应用安装目录',
+      click: () => {
+        void openAppInstallDir()
+      },
+    },
+  ]
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: '文件',
       submenu: [
         { label: '关于 码盒', role: 'about' },
+        { type: 'separator' as const },
+        ...shortcutSubmenu,
         { type: 'separator' as const },
         { label: '退出', accelerator: 'CmdOrCtrl+Q', role: 'quit' },
       ],
@@ -141,14 +190,25 @@ function buildMenu() {
 }
 
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return
+
   // Persist normalized legacy store records (e.g. missing categoryIds)
   setRepos(getRepos())
   setCategories(getCategories())
 
   const settings = getSettings()
   await fs.mkdir(settings.workspaceRoot, { recursive: true })
+  await syncWorkspaceRepos()
+  await configureSessionProxy()
   buildMenu()
   createWindow()
+})
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
 })
 
 app.on('window-all-closed', () => {
@@ -178,6 +238,33 @@ ipcMain.handle('settings:save', (_e, partial: Partial<ReturnType<typeof getSetti
   setSettings(partial)
   return getSettings()
 })
+
+ipcMain.handle('launcher:detect-defaults', () => detectLauncherDefaults())
+
+ipcMain.handle('launcher:pick-path', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openFile'],
+    filters: [
+      { name: '可执行文件', extensions: ['exe', 'cmd', 'bat'] },
+      { name: '全部', extensions: ['*'] },
+    ],
+    title: '选择程序路径',
+  })
+  if (result.canceled || !result.filePaths[0]) return null
+  return result.filePaths[0]
+})
+
+ipcMain.handle(
+  'launcher:open',
+  async (
+    _e,
+    id: LauncherId,
+    options?: { repoPath?: string; url?: string; remoteUrl?: string },
+  ) => {
+    const settings = getSettings()
+    return launchExternalApp(id, settings.launcherPaths ?? {}, options ?? {})
+  },
+)
 
 ipcMain.handle('categories:save', (_e, categories: Category[]) => {
   setCategories(categories)
@@ -305,51 +392,170 @@ ipcMain.handle('repos:pick-folder', async () => {
   return result.filePaths[0]
 })
 
-async function upsertRepo(localPath: string, remoteUrl?: string): Promise<RepoRecord> {
-  const normalized = path.normalize(localPath)
+async function pathIsDirectory(dirPath: string): Promise<boolean> {
+  try {
+    const stat = await fs.stat(dirPath)
+    return stat.isDirectory()
+  } catch {
+    return false
+  }
+}
+
+function sanitizeRepoFolderName(name: string): string {
+  const cleaned = name
+    .trim()
+    .replace(/[<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return cleaned.slice(0, 80) || 'new-repo'
+}
+
+async function registerLocalRepo(localPath: string): Promise<RepoRecord> {
+  const normalized = path.normalize(localPath.trim())
+  if (!normalized) {
+    throw new Error('路径不能为空')
+  }
+  if (!(await pathIsDirectory(normalized))) {
+    throw new Error('路径不存在或不是文件夹')
+  }
+
   const repos = getRepos()
-  const existing = repos.find((r) => path.normalize(r.localPath) === normalized)
+  const taken = repos.find((r) => path.normalize(r.localPath) === normalized)
+  if (taken) {
+    return upsertRepo(normalized, { remoteUrl: taken.remoteUrl, repoKind: taken.repoKind ?? 'local' })
+  }
+
+  return upsertRepo(normalized, { repoKind: 'local' })
+}
+
+async function relocateRepoRecord(id: string, newLocalPath: string): Promise<RepoRecord> {
+  const normalized = path.normalize(newLocalPath.trim())
+  if (!normalized) {
+    throw new Error('路径不能为空')
+  }
+  if (!(await pathIsDirectory(normalized))) {
+    throw new Error('路径不存在或不是文件夹')
+  }
+
+  const repos = getRepos()
+  const idx = repos.findIndex((r) => r.id === id)
+  if (idx < 0) {
+    throw new Error('仓库不存在')
+  }
+
+  const old = repos[idx]
+  if (old.repoKind === 'cloud' && !(await isGitRepository(normalized))) {
+    throw new Error('云端仓库路径必须是 Git 仓库')
+  }
+
+  const duplicate = repos.find((r) => r.id !== id && path.normalize(r.localPath) === normalized)
+  if (duplicate) {
+    throw new Error('该路径已被其他仓库使用')
+  }
+
+  if (path.normalize(old.localPath) === normalized) {
+    return upsertRepo(normalized, { remoteUrl: old.remoteUrl, repoKind: old.repoKind })
+  }
+
+  terminalManager.destroyByRepoPath(old.localPath)
+  fileTreeWatcher.unwatch(old.localPath)
 
   const scan = await scanRepository(normalized)
-  const name = path.basename(normalized)
-
   const record: RepoRecord = {
-    id: existing?.id ?? uuidv4(),
-    name,
+    ...old,
+    name: path.basename(normalized),
     localPath: normalized,
-    remoteUrl: scan.remoteUrl ?? remoteUrl ?? existing?.remoteUrl,
-    description: scan.description ?? existing?.description,
-    language: scan.language ?? existing?.language,
-    categoryIds: existing?.categoryIds ?? ['uncategorized'],
-    starred: existing?.starred ?? false,
-    lastOpenedAt: new Date().toISOString(),
-    addedAt: existing?.addedAt ?? new Date().toISOString(),
+    description: scan.description ?? old.description,
+    language: scan.language ?? old.language,
     readmeExcerpt: scan.readmeExcerpt,
     hasReadme: scan.hasReadme,
     gitBranch: scan.gitBranch,
     gitDirty: scan.gitDirty,
+    remoteUrl: scan.remoteUrl ?? old.remoteUrl,
+    lastOpenedAt: new Date().toISOString(),
   }
 
-  const next = existing
-    ? repos.map((r) => (r.id === record.id ? record : r))
-    : [...repos, record]
-  setRepos(next)
+  repos[idx] = record
+  setRepos(repos)
   return record
 }
+
+ipcMain.handle('repos:sync-workspace', async () => {
+  try {
+    return { ok: true as const, ...(await syncWorkspaceRepos()) }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message, added: 0, updated: 0, total: 0, paths: [] as string[] }
+  }
+})
 
 ipcMain.handle('repos:add-local', async () => {
   const folder = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory'],
-    title: '添加本地 Git 仓库',
+    title: '添加本地仓库',
   })
   if (folder.canceled || !folder.filePaths[0]) return { ok: false as const, error: '已取消' }
-  const localPath = folder.filePaths[0]
-  const isGit = await isGitRepository(localPath)
-  if (!isGit) {
-    return { ok: false as const, error: '所选文件夹不是 Git 仓库' }
+  try {
+    const repo = await registerLocalRepo(folder.filePaths[0])
+    return { ok: true as const, repo }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message }
   }
-  const repo = await upsertRepo(localPath)
-  return { ok: true as const, repo }
+})
+
+ipcMain.handle('repos:add-local-from-path', async (_e, localPath: string) => {
+  try {
+    const repo = await registerLocalRepo(localPath)
+    return { ok: true as const, repo }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message }
+  }
+})
+
+ipcMain.handle('repos:create', async (_e, folderName: string, kind: 'local' | 'cloud' = 'local') => {
+  try {
+    const settings = getSettings()
+    await fs.mkdir(settings.workspaceRoot, { recursive: true })
+    const base = sanitizeRepoFolderName(folderName)
+    let localPath = path.join(settings.workspaceRoot, base)
+    let suffix = 1
+    while (await pathIsDirectory(localPath)) {
+      localPath = path.join(settings.workspaceRoot, `${base}-${suffix}`)
+      suffix += 1
+    }
+    await fs.mkdir(localPath, { recursive: true })
+    if (kind === 'cloud') {
+      await initGitRepository(localPath)
+    }
+    const readmePath = path.join(localPath, 'README.md')
+    try {
+      await fs.access(readmePath)
+    } catch {
+      await fs.writeFile(
+        readmePath,
+        `# ${path.basename(localPath)}\n\n在此编写项目说明。\n`,
+        'utf-8',
+      )
+    }
+    const repo = await upsertRepo(localPath, { repoKind: kind })
+    return { ok: true as const, repo }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message }
+  }
+})
+
+ipcMain.handle('repos:relocate', async (_e, id: string, newLocalPath: string) => {
+  try {
+    const repo = await relocateRepoRecord(id, newLocalPath)
+    return { ok: true as const, repo }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { ok: false as const, error: message }
+  }
 })
 
 ipcMain.handle('repos:import-url', async (_e, url: string) => {
@@ -357,7 +563,7 @@ ipcMain.handle('repos:import-url', async (_e, url: string) => {
     const settings = getSettings()
     await fs.mkdir(settings.workspaceRoot, { recursive: true })
     const localPath = await cloneRepository(url, settings.workspaceRoot)
-    const repo = await upsertRepo(localPath, url.trim())
+    const repo = await upsertRepo(localPath, { remoteUrl: url.trim(), repoKind: 'cloud' })
     return { ok: true as const, repo }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -379,15 +585,16 @@ ipcMain.handle('repos:refresh', async (_e, id: string) => {
   const repos = getRepos()
   const repo = repos.find((r) => r.id === id)
   if (!repo) return null
-  return upsertRepo(repo.localPath, repo.remoteUrl)
+  return upsertRepo(repo.localPath, { remoteUrl: repo.remoteUrl, repoKind: repo.repoKind })
 })
 
 ipcMain.handle('repos:refresh-all', async () => {
+  await syncWorkspaceRepos()
   const repos = getRepos()
   const updated: RepoRecord[] = []
   for (const r of repos) {
     try {
-      updated.push(await upsertRepo(r.localPath, r.remoteUrl))
+      updated.push(await upsertRepo(r.localPath, { remoteUrl: r.remoteUrl, repoKind: r.repoKind }))
     } catch {
       updated.push(r)
     }
@@ -405,6 +612,12 @@ ipcMain.handle('repos:remove', (_e, id: string) => {
 ipcMain.handle('workspace:open', () => {
   shell.openPath(getSettings().workspaceRoot)
 })
+
+ipcMain.handle('app:get-install-info', () => getAppInstallInfo())
+ipcMain.handle('app:create-desktop-shortcut', () => createDesktopShortcut())
+ipcMain.handle('app:create-startmenu-shortcut', () => createStartMenuShortcut())
+ipcMain.handle('app:open-install-dir', () => openAppInstallDir())
+ipcMain.handle('app:open-installer', () => openInstaller())
 
 ipcMain.handle('store:path', () => store.path)
 

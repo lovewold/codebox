@@ -60,3 +60,7 @@ export async function isGitRepository(dir: string): Promise<boolean> {
     return false
   }
 }
+
+export async function initGitRepository(dir: string): Promise<void> {
+  await execFileAsync('git', ['init'], { cwd: dir, timeout: 15000 })
+}

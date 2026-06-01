@@ -1,5 +1,6 @@
 export type ViewMode = 'grid' | 'list' | 'compact'
 export type ModelProviderType = 'openai' | 'anthropic' | 'google_gemini' | 'deepseek' | 'xiaomi' | 'custom_openai'
+export type RepoKind = 'local' | 'cloud'
 
 export interface ModelProfile {
   id: string
@@ -24,6 +25,8 @@ export interface RepoRecord {
   id: string
   name: string
   localPath: string
+  /** local=纯本地文件夹；cloud=Git/远程仓库 */
+  repoKind: RepoKind
   remoteUrl?: string
   description?: string
   language?: string
@@ -53,6 +56,8 @@ export interface Category {
 
 export type TerminalThemeId = 'warm' | 'balanced' | 'classic' | 'soft-light'
 
+export type LauncherId = 'codex' | 'cursor' | 'edge'
+
 export interface AppSettings {
   workspaceRoot: string
   aiApiKey: string
@@ -62,6 +67,8 @@ export interface AppSettings {
   theme: 'light' | 'dark'
   /** 内置终端 ANSI 配色，默认 warm（橙调，适配 Claude Code） */
   terminalTheme?: TerminalThemeId
+  /** 外部应用可执行文件路径（留空则自动检测） */
+  launcherPaths?: Partial<Record<LauncherId, string>>
   modelProfiles: ModelProfile[]
   activeProfileId: string | null
 }

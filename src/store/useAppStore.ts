@@ -85,6 +85,8 @@ interface AppState {
   ensureTerminalSession: (repoId: string, repoPath: string) => void
   setTerminalPanelOpen: (repoPath: string, open: boolean) => void
   closeTerminalSession: (repoPath: string) => void
+  /** 更改仓库本地路径后迁移终端会话键 */
+  relocateTerminalPath: (oldPath: string, newPath: string, repoId: string) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -186,6 +188,22 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => {
       const { [repoPath]: _s, ...terminalSessions } = s.terminalSessions
       const { [repoPath]: _o, ...terminalPanelOpen } = s.terminalPanelOpen
+      return { terminalSessions, terminalPanelOpen }
+    })
+  },
+
+  relocateTerminalPath: (oldPath, newPath, repoId) => {
+    if (oldPath === newPath) return
+    destroyTerminalResources(oldPath)
+    set((s) => {
+      const { [oldPath]: sess, ...restSessions } = s.terminalSessions
+      const { [oldPath]: wasOpen, ...restOpen } = s.terminalPanelOpen
+      const terminalSessions = { ...restSessions }
+      const terminalPanelOpen = { ...restOpen }
+      if (sess || wasOpen) {
+        terminalSessions[newPath] = { repoId }
+        if (wasOpen) terminalPanelOpen[newPath] = true
+      }
       return { terminalSessions, terminalPanelOpen }
     })
   },

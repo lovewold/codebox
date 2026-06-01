@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ExternalLink,
+  FolderInput,
   FolderOpen,
+  FolderUp,
   GitBranch,
   Languages,
   Loader2,
@@ -16,6 +18,8 @@ import { MarkdownView } from './MarkdownView'
 import { CodePreview } from './CodePreview'
 import { FileTree } from './FileTree'
 import { TerminalViewport } from './terminal/TerminalViewport'
+import { ExternalLaunchButtons } from './ExternalLaunchButtons'
+import { useFolderDrop } from '../hooks/useFolderDrop'
 import { useAppStore } from '../store/useAppStore'
 import type { Category, RepoRecord } from '../types'
 import T from '../i18n'
@@ -39,6 +43,7 @@ interface Props {
   onRemove: () => void
   onToggleCategory: (categoryId: string) => void
   onOpenGitPanel?: () => void
+  onRelocatePath?: (newPath: string) => Promise<{ ok: boolean; error?: string }>
 }
 
 export function RepoDetail({
@@ -51,6 +56,7 @@ export function RepoDetail({
   onRemove,
   onToggleCategory,
   onOpenGitPanel,
+  onRelocatePath,
 }: Props) {
   const setReadme = useAppStore((s) => s.setReadme)
   const [showChinese, setShowChinese] = useState(readme?.chinese != null)
@@ -104,11 +110,17 @@ export function RepoDetail({
   const [fileTreeRefresh, setFileTreeRefresh] = useState(0)
   const [contentTab, setContentTab] = useState<ContentTab>('doc')
   const [layoutTick, setLayoutTick] = useState(0)
+  const [relocateError, setRelocateError] = useState<string | null>(null)
+  const [relocateBusy, setRelocateBusy] = useState(false)
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
   const dragging = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+
+  const bumpFileTree = useCallback(() => {
+    setFileTreeRefresh((n) => n + 1)
+  }, [])
 
   // Reset when repo changes（终端会话按 repoPath 独立保存在 store，此处不关闭）
   useEffect(() => {
@@ -117,11 +129,9 @@ export function RepoDetail({
     setFileError(null)
     setTranslateError(null)
     setCatPopoverOpen(false)
-  }, [repo.id])
-
-  const bumpFileTree = useCallback(() => {
-    setFileTreeRefresh((n) => n + 1)
-  }, [])
+    setRelocateError(null)
+    bumpFileTree()
+  }, [repo.id, repo.localPath, bumpFileTree])
 
   const reloadOpenFilePreview = useCallback(async () => {
     const file = selectedFileRef.current
@@ -241,6 +251,36 @@ export function RepoDetail({
     setContentTab('doc')
   }, [repo.localPath, closeTerminalSession])
 
+  const applyRelocate = useCallback(
+    async (newPath: string) => {
+      if (!onRelocatePath || newPath === repo.localPath) return
+      setRelocateBusy(true)
+      setRelocateError(null)
+      try {
+        const res = await onRelocatePath(newPath)
+        if (!res.ok) {
+          setRelocateError(res.error ?? T.relocatePathError)
+        }
+      } finally {
+        setRelocateBusy(false)
+      }
+    },
+    [onRelocatePath, repo.localPath],
+  )
+
+  const { dragOver: pathDragOver, dropHandlers: pathDropHandlers } = useFolderDrop({
+    disabled: !onRelocatePath || relocateBusy,
+    onDropPaths: async (paths) => {
+      if (paths[0]) await applyRelocate(paths[0])
+    },
+  })
+
+  async function handlePickRelocatePath() {
+    if (!api || !onRelocatePath) return
+    const folder = await api.repos.pickFolder()
+    if (folder) await applyRelocate(folder)
+  }
+
   useEffect(() => {
     const t = setTimeout(() => setLayoutTick((n) => n + 1), 120)
     return () => clearTimeout(t)
@@ -289,23 +329,32 @@ export function RepoDetail({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-lg font-bold text-fg-default">{repo.name}</h1>
+              <span
+                className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
+                  repo.repoKind === 'cloud'
+                    ? 'bg-accent-subtle text-accent-fg'
+                    : 'bg-bg-inset text-fg-muted'
+                }`}
+              >
+                {repo.repoKind === 'cloud' ? T.repoKindCloud : T.repoKindLocal}
+              </span>
               {repo.language && (
                 <span className="shrink-0 rounded-full bg-bg-inset px-2 py-0.5 text-xs text-fg-muted">
                   {repo.language}
                 </span>
               )}
-              {repo.gitBranch && (
+              {repo.repoKind === 'cloud' && repo.gitBranch && (
                 <span className="shrink-0 font-mono text-xs text-fg-muted">{repo.gitBranch}</span>
               )}
-              {repo.gitDirty && (
+              {repo.repoKind === 'cloud' && repo.gitDirty && (
                 <span className="shrink-0 rounded bg-attention-fg/15 px-1.5 py-0.5 text-xs text-attention-fg">
                   {T.hasUncommitted}
                 </span>
               )}
-              {repo.aheadCount ? (
+              {repo.repoKind === 'cloud' && repo.aheadCount ? (
                 <span className="shrink-0 text-xs text-success-fg">{T.ahead(repo.aheadCount)}</span>
               ) : null}
-              {repo.behindCount ? (
+              {repo.repoKind === 'cloud' && repo.behindCount ? (
                 <span className="shrink-0 text-xs text-attention-fg">{T.behind(repo.behindCount)}</span>
               ) : null}
             </div>
@@ -314,9 +363,43 @@ export function RepoDetail({
                 {repo.description || repo.lastCommitMessage?.slice(0, 80)}
               </p>
             )}
-            <p className="mt-0.5 truncate font-mono text-xs text-fg-subtle">{repo.localPath}</p>
+            <div
+              className={`relative mt-1 flex min-w-0 items-center gap-1 rounded-md border border-transparent px-1 py-0.5 transition ${
+                pathDragOver ? 'border-accent-fg/40 bg-accent-subtle/40' : 'hover:border-border-default hover:bg-bg-subtle'
+              }`}
+              title={T.dropFolderRelocateHint}
+              {...pathDropHandlers}
+            >
+              {pathDragOver && (
+                <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-accent-subtle/60 text-xs text-accent-fg">
+                  <FolderUp className="mr-1 h-3.5 w-3.5" />
+                  {T.dropFolderRelocateHint}
+                </span>
+              )}
+              <p className="min-w-0 flex-1 truncate font-mono text-xs text-fg-subtle">{repo.localPath}</p>
+              {onRelocatePath && (
+                <button
+                  type="button"
+                  disabled={relocateBusy}
+                  onClick={() => void handlePickRelocatePath()}
+                  className="shrink-0 rounded p-0.5 text-fg-muted hover:bg-bg-inset hover:text-fg-default disabled:opacity-50"
+                  title="选择文件夹更换本地路径"
+                >
+                  {relocateBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FolderInput className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
+            {relocateError && (
+              <p className="mt-0.5 text-xs text-danger-fg">{relocateError}</p>
+            )}
           </div>
-          <div className="flex shrink-0 flex-wrap gap-1.5">
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <ExternalLaunchButtons repo={repo} />
+            <div className="flex flex-wrap justify-end gap-1.5">
             <ToolbarBtn icon={RefreshCw} label={T.refresh} onClick={onRefresh} />
             <ToolbarBtn icon={FolderOpen} label={T.openFolder} onClick={onOpenFolder} />
             <ToolbarBtn
@@ -336,11 +419,12 @@ export function RepoDetail({
               />
             )}
             <ToolbarBtn icon={Trash2} label={T.remove} onClick={onRemove} danger />
+            </div>
           </div>
         </div>
 
         {/* Remote URL */}
-        {repo.remoteUrl && (
+        {repo.repoKind === 'cloud' && repo.remoteUrl && (
           <a
             href={repo.remoteUrl.replace(/\.git$/, '').replace(/^git@github\.com:/, 'https://github.com/')}
             target="_blank"
