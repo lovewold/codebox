@@ -12,7 +12,7 @@ Vibe Coding 时代，每个人都能用 AI 快速生成项目。GitHub 上每天
 
 ## 快速安装（Windows）
 
-1. 打开 [Releases](https://github.com/lovewold/codebox/releases/latest) 下载 **`码盒 Setup x.x.x.exe`**
+1. 打开 [Releases](https://github.com/lovewold/codebox/releases/latest) 下载 **`codebox-setup-x.x.x.exe`**（Windows 安装包；本地构建文件名为 `码盒 Setup x.x.x.exe`）
 2. **双击安装程序**完成向导安装（会自动创建桌面快捷方式）
 3. 本机需已安装 [Git](https://git-scm.com/)
 
